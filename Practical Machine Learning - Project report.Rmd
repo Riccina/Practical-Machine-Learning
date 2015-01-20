@@ -1,0 +1,107 @@
+---
+title: Practical Machine Learning
+subtitle: Prediction Assignment Writeup
+author: D. E.
+date: Tuesday, January 20, 2015
+output: html_document
+---
+   
+    
+# Introduction
+  
+"Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset)."
+  
+---
+  
+# Method
+  
+### Loading and cleaning data
+   
+The following Libraries were used for this project. These should be first installed and loaded in the working environment.
+  
+```{r}
+library(caret)
+library(randomForest)
+```
+  
+A pseudo random seed has been set to ensure reproducibility of results.
+```{r}
+set.seed(5627)
+```
+  
+The data were loaded in the working environment.
+  
+In order to provide consistent data to construct features, the Excel division error strings #DIV/0! were removed and replaced with NA values and empty strings were replaced by NA values.
+  
+```{r}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+```
+---
+  
+### Cross Validation
+  
+Cross validation was achieved by partitioning the data by the class variable into a training (60%) and test(40%) set.
+  
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=0.60, list=FALSE)
+train <- training[inTrain, ] 
+test<- training[-inTrain, ]
+```
+  
+Next a function to remove entire NA columns was applied to both data frames. Then a function that removes any variables with missing NAs was applied to both data frames.
+  
+```{r}
+removeNAcols   <- function(x) { x[ , colSums( is.na(x) ) < nrow(x) ] }
+train <- removeNAcols(train)
+test  <- removeNAcols(test)
+complete       <- function(x) {x[,sapply(x, function(y) !any(is.na(y)))] }
+incompl        <- function(x) {names( x[,sapply(x, function(y) any(is.na(y)))] ) }
+trtr.na.var    <- incompl(train)
+trts.na.var    <- incompl(test)
+train <- complete(train)
+test  <- complete(test)
+```
+  
+---
+  
+### Prediction model
+  
+The random forest model was used for prediction.
+```{r}
+random.forest <- train(train[,-57],
+                       train$classe,
+                       tuneGrid=data.frame(mtry=3),
+                       trControl=trainControl(method="none")
+                       )
+```
+  
+---
+  
+# Results
+  
+Below is a summary of the results from the prediction model
+
+```{r, echo=FALSE}
+summary(random.forest)
+```
+  
+The results from the prediction model are then compared with the actual data:
+  
+```{r}
+confusionMatrix(predict(random.forest,
+                        newdata=test[,-57]),
+                test$classe
+                )
+```
+  
+The Kappa statistic of 1 indicates perfect agreement.
+  
+```{r, echo=FALSE}
+plot( varImp(random.forest) )
+```
+  
+In conclusion, the random forest algorithm appears to perform very well for predicting activities from accelerometers measurements.
+
